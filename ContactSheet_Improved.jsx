@@ -1,4 +1,3 @@
-#target photoshop
 app.bringToFront();
 
 // Save original ruler units so we can restore later
@@ -26,11 +25,82 @@ function main() {
         return;
     }
     
-    // Define A4 size in pixels at 300 DPI in landscape orientation
-    // A4 size at 300 DPI: Portrait is about 2480 x 3508; so landscape is reversed.
-    var docWidth = 3508;
-    var docHeight = 2480;
+    // Determine if images are primarily horizontal or vertical
+    var isHorizontal = true;
+    
+    // Open only the first image to determine orientation
+    if (fileList.length > 0) {
+        var firstImage = fileList[0];
+        var img = new File(firstImage);
+        
+        // Use Exif metadata to get dimensions without opening the file
+        var exifData = getExifData(img);
+        if (exifData && exifData.width && exifData.height) {
+            // If width is less than height, images are primarily vertical
+            isHorizontal = exifData.width > exifData.height;
+        } else {
+            // Fallback to opening the file if metadata is not available
+            var imgInfo = app.open(img);
+            isHorizontal = imgInfo.width > imgInfo.height;
+            imgInfo.close(SaveOptions.DONOTSAVECHANGES);
+        }
+    }
+    
+    // Helper function to get Exif metadata
+    function getExifData(file) {
+        try {
+            var exifToolPath = new File("/usr/bin/exiftool");
+            if (!exifToolPath.exists) {
+                // Try alternative paths for Windows
+                exifToolPath = new File("C:\\Program Files\\ExifTool\\exiftool.exe");
+                if (!exifToolPath.exists) {
+                    return null;
+                }
+            }
+            
+            var tempFile = new File(file);
+            var cmd = exifToolPath.fsName + " -json -width -height \"" + tempFile.fsName + "\"";
+            var result = executeCommand(cmd);
+            
+            if (result && result.length > 0) {
+                var jsonData = JSON.parse(result);
+                if (jsonData && jsonData[0] && jsonData[0].Width && jsonData[0].Height) {
+                    return {
+                        width: parseInt(jsonData[0].Width),
+                        height: parseInt(jsonData[0].Height)
+                    };
+                }
+            }
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+    
+    // Helper function to execute shell commands
+    function executeCommand(cmd) {
+        var result = "";
+        var shell = new File("/bin/sh");
+        var shellScript = "cd " + shell.parent.fsName + " && " + cmd;
+        
+        var shellProcess = new Process();
+        shellProcess.launch(shellScript);
+        shellProcess.wait();
+        
+        return result;
+    }
+    
+    // Define page size based on orientation
     var resolution = 300;
+    if (isHorizontal) {
+        // Landscape orientation (wide)
+        var docWidth = 3508;
+        var docHeight = 2480;
+    } else {
+        // Portrait orientation (tall)
+        var docWidth = 2480;
+        var docHeight = 3508;
+    }
     
     // Define margin and gap between images (both 25 px)
     var margin = 25;
@@ -75,18 +145,10 @@ function main() {
                 // After placement, the placed layer is active.
                 var placedLayer = contactDoc.activeLayer;
                 
-                // --- Ensure the image is horizontal ---
+                // --- Resize the image to fit within the cell ---
                 var bounds = placedLayer.bounds;
                 var layerWidth = bounds[2].value - bounds[0].value;
                 var layerHeight = bounds[3].value - bounds[1].value;
-                if (layerWidth < layerHeight) {
-                    placedLayer.rotate(90, AnchorPosition.MIDDLECENTER);
-                }
-                
-                // --- Resize the image to fit within the cell ---
-                bounds = placedLayer.bounds;
-                layerWidth = bounds[2].value - bounds[0].value;
-                layerHeight = bounds[3].value - bounds[1].value;
                 var scaleFactor = Math.min(cellWidth / layerWidth, cellHeight / layerHeight) * 100;
                 placedLayer.resize(scaleFactor, scaleFactor, AnchorPosition.MIDDLECENTER);
                 
