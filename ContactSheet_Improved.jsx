@@ -37,18 +37,8 @@ function main() {
         imgInfo.close(SaveOptions.DONOTSAVECHANGES);
     }
     
-    // Calculate row count based on document dimensions and image orientation
-    var rowCount;
-    if (isHorizontal) {
-        // For landscape documents, use more rows for horizontal images
-        rowCount = Math.ceil(6 * (isHorizontal ? 0.8 : 1.2));
-    } else {
-        // For portrait documents, use more rows for vertical images
-        rowCount = Math.ceil(6 * (isHorizontal ? 1.2 : 0.8));
-    }
-    
-    // Ensure we have at least 2 rows
-    rowCount = Math.max(2, rowCount);
+    // Calculate row count dynamically based on available space
+    var rowCount = Math.ceil(fileList.length / columnCount);
     
     // Define page size based on orientation
     var resolution = 300;
@@ -62,20 +52,32 @@ function main() {
         var docHeight = 3508;
     }
     
-    // Define margin and gap between images (both 25 px)
+    // Define margin and gap between images (both equal)
     var margin = 25;
-    var gap = 25;
+    var gap = margin; // Ensure gap equals margin
     
-    // Calculate effective cell dimensions considering margins and gaps
-    var cellWidth = (docWidth - 2 * margin - (columnCount - 1) * gap) / columnCount;
-    var cellHeight = (docHeight - 2 * margin - (rowCount - 1) * gap) / rowCount;
+    // Calculate available space for images
+    var availableWidth = docWidth - 2 * margin;
+    var availableHeight = docHeight - 2 * margin;
+    
+    // Set number of rows equal to number of columns
+    rowCount = columnCount;
+    
+    // Calculate cell dimensions based on available space and fixed gaps
+    var totalGapWidth = (columnCount - 1) * gap;
+    var totalGapHeight = (rowCount - 1) * gap;
+    var cellWidth = (availableWidth - totalGapWidth) / columnCount;
+    var cellHeight = (availableHeight - totalGapHeight) / rowCount;
     
     var imageIndex = 0;
     var pageCount = 0;
+    
+    // Calculate total images per page
     var imagesPerPage = columnCount * rowCount;
     
     // Create as many pages as needed
     while (imageIndex < fileList.length) {
+        
         pageCount++;
         var contactDoc = app.documents.add(docWidth, docHeight, resolution, "Custom Contact Sheet - Page " + pageCount, NewDocumentMode.RGB, DocumentFill.WHITE);
         
