@@ -5,11 +5,11 @@ var originalRulerUnits = app.preferences.rulerUnits;
 app.preferences.rulerUnits = Units.PIXELS;
 
 function main() {
-    // Prompt the user for grid size (allowed: 2,3,4,5,6)
-    var gridInput = prompt("Enter grid size (for a grid of n x n images; choose 2, 3, 4, 5 or 6):", "3");
-    var gridSize = parseInt(gridInput, 10);
-    if (isNaN(gridSize) || gridSize < 2 || gridSize > 6) {
-        alert("Invalid grid size. Please run the script again and choose one of the following values: 2, 3, 4, 5 or 6.");
+    // Prompt the user for column count (allowed: 2,3,4,5,6)
+    var columnInput = prompt("Enter number of columns (2, 3, 4, 5 or 6):", "3");
+    var columnCount = parseInt(columnInput, 10);
+    if (isNaN(columnCount) || columnCount < 2 || columnCount > 6) {
+        alert("Invalid column count. Please run the script again and choose one of the following values: 2, 3, 4, 5 or 6.");
         return;
     }
     
@@ -27,68 +27,28 @@ function main() {
     
     // Determine if images are primarily horizontal or vertical
     var isHorizontal = true;
-    
-    // Open only the first image to determine orientation
     if (fileList.length > 0) {
         var firstImage = fileList[0];
         var img = new File(firstImage);
         
-        // Use Exif metadata to get dimensions without opening the file
-        var exifData = getExifData(img);
-        if (exifData && exifData.width && exifData.height) {
-            // If width is less than height, images are primarily vertical
-            isHorizontal = exifData.width > exifData.height;
-        } else {
-            // Fallback to opening the file if metadata is not available
-            var imgInfo = app.open(img);
-            isHorizontal = imgInfo.width > imgInfo.height;
-            imgInfo.close(SaveOptions.DONOTSAVECHANGES);
-        }
+        // Get image dimensions
+        var imgInfo = app.open(img);
+        isHorizontal = imgInfo.width > imgInfo.height;
+        imgInfo.close(SaveOptions.DONOTSAVECHANGES);
     }
     
-    // Helper function to get Exif metadata
-    function getExifData(file) {
-        try {
-            var exifToolPath = new File("/usr/bin/exiftool");
-            if (!exifToolPath.exists) {
-                // Try alternative paths for Windows
-                exifToolPath = new File("C:\\Program Files\\ExifTool\\exiftool.exe");
-                if (!exifToolPath.exists) {
-                    return null;
-                }
-            }
-            
-            var tempFile = new File(file);
-            var cmd = exifToolPath.fsName + " -json -width -height \"" + tempFile.fsName + "\"";
-            var result = executeCommand(cmd);
-            
-            if (result && result.length > 0) {
-                var jsonData = JSON.parse(result);
-                if (jsonData && jsonData[0] && jsonData[0].Width && jsonData[0].Height) {
-                    return {
-                        width: parseInt(jsonData[0].Width),
-                        height: parseInt(jsonData[0].Height)
-                    };
-                }
-            }
-            return null;
-        } catch (e) {
-            return null;
-        }
+    // Calculate row count based on document dimensions and image orientation
+    var rowCount;
+    if (isHorizontal) {
+        // For landscape documents, use more rows for horizontal images
+        rowCount = Math.ceil(6 * (isHorizontal ? 0.8 : 1.2));
+    } else {
+        // For portrait documents, use more rows for vertical images
+        rowCount = Math.ceil(6 * (isHorizontal ? 1.2 : 0.8));
     }
     
-    // Helper function to execute shell commands
-    function executeCommand(cmd) {
-        var result = "";
-        var shell = new File("/bin/sh");
-        var shellScript = "cd " + shell.parent.fsName + " && " + cmd;
-        
-        var shellProcess = new Process();
-        shellProcess.launch(shellScript);
-        shellProcess.wait();
-        
-        return result;
-    }
+    // Ensure we have at least 2 rows
+    rowCount = Math.max(2, rowCount);
     
     // Define page size based on orientation
     var resolution = 300;
@@ -107,12 +67,12 @@ function main() {
     var gap = 25;
     
     // Calculate effective cell dimensions considering margins and gaps
-    var cellWidth = (docWidth - 2 * margin - (gridSize - 1) * gap) / gridSize;
-    var cellHeight = (docHeight - 2 * margin - (gridSize - 1) * gap) / gridSize;
+    var cellWidth = (docWidth - 2 * margin - (columnCount - 1) * gap) / columnCount;
+    var cellHeight = (docHeight - 2 * margin - (rowCount - 1) * gap) / rowCount;
     
     var imageIndex = 0;
     var pageCount = 0;
-    var imagesPerPage = gridSize * gridSize;
+    var imagesPerPage = columnCount * rowCount;
     
     // Create as many pages as needed
     while (imageIndex < fileList.length) {
@@ -120,8 +80,8 @@ function main() {
         var contactDoc = app.documents.add(docWidth, docHeight, resolution, "Custom Contact Sheet - Page " + pageCount, NewDocumentMode.RGB, DocumentFill.WHITE);
         
         // Loop through grid cells in this page
-        for (var row = 0; row < gridSize; row++) {
-            for (var col = 0; col < gridSize; col++) {
+        for (var row = 0; row < rowCount; row++) {
+            for (var col = 0; col < columnCount; col++) {
                 if (imageIndex >= fileList.length) break; // no more images
                 
                 var imageFile = fileList[imageIndex];
@@ -164,7 +124,7 @@ function main() {
         }
     }
     
-    alert("Custom contact sheet created with " + pageCount + " page(s).");
+    alert("Custom contact sheet created with " + pageCount + " page(s) using a " + columnCount + "x" + rowCount + " grid layout.");
 }
 
 // Run the main function
